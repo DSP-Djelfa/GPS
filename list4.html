@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مديرية الصحة و السكان</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.3.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.3.1/firebase-firestore.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+            background-color: #f4f4f4;
+            direction: rtl; /* Set direction to RTL */
+            text-align: right; /* Align text to the right */
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            direction: rtl; /* Set direction to RTL */
+            text-align: right; /* Align text to the right */
+        }
+        h1 {
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            direction: rtl; /* Set direction to RTL */
+            text-align: right; /* Align text to the right */
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+            direction: rtl; /* Set direction to RTL */
+            text-align: right; /* Align text to the right */
+        }
+        th {
+            background-color: #f2f2f2;
+            direction: rtl; /* Set direction to RTL */
+            text-align: right; /* Align text to the right */
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            direction: rtl; /* Set direction to RTL */
+            text-align: right; /* Align text to the right */
+        }
+        button {
+            padding: 10px 15px;
+            margin: 10px 0;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>تحديث المواقع الجغرافية للهايكل الصحية </h1>
+        <div>
+            <h3>المؤسسة العمومية للصحة الجوارية</h3>
+            <input type="text" id="filterEntreprise" placeholder="الجلفة">
+            <button onclick="showTable()">دخول</button>
+        </div>
+        <div id="tableContainer" class="hidden">
+            <table>
+                <thead>
+                    <tr>
+                        <th>المؤسسة العمومية</th>
+                        <th>اسم الهيكل الصحي</th>
+                        <th>نوع الهيكل الصحي</th>
+                        <th>البلدية</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
+                        <th>حفظ التعديلات</th>
+                        <th>الخريطة</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTable">
+                    <!-- Data will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration (replace with your own Firebase config)
+        const firebaseConfig = {
+  apiKey: "AIzaSyCpE0sSkR4jG9UzWZs4Tf0SLeSebv9tHVA",
+  authDomain: "gpsdsp-6f3db.firebaseapp.com",
+  databaseURL: "https://gpsdsp-6f3db-default-rtdb.firebaseio.com",
+  projectId: "gpsdsp-6f3db",
+  storageBucket: "gpsdsp-6f3db.appspot.com",
+  messagingSenderId: "463226938115",
+  appId: "1:463226938115:web:90331e97759011296fff36",
+  measurementId: "G-HJ408J10Q9"
+};
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(app);
+
+        // Function to fetch data from Firestore and display it in a table with filter
+        function fetchData() {
+            const filterEntreprise = document.getElementById('filterEntreprise').value.toLowerCase();
+
+            db.collection('entreprises').get().then((querySnapshot) => {
+                const dataTable = document.getElementById('dataTable');
+                dataTable.innerHTML = ''; // Clear the table before adding new data
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (!filterEntreprise || data.Entreprise.toLowerCase().includes(filterEntreprise)) {
+                        const tr = document.createElement('tr');
+
+                        tr.innerHTML = `
+                            <td>${data.Entreprise}</td>
+                            <td>${data.Nom_structure}</td>
+                            <td>${data.Type_structure}</td>
+                            <td>${data.Commun}</td>
+                            <td contenteditable="true" onblur="updateData('${doc.id}', 'Latitude', this.textContent)">${data.Latitude}</td>
+                            <td contenteditable="true" onblur="updateData('${doc.id}', 'Longitude', this.textContent)">${data.Longitude}</td>
+                            <td>
+                                <button onclick="saveData('${doc.id}', this)">Save</button>
+                            </td>
+                            <td>
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/a/aa/Google_Maps_icon_(2020).svg" class="map-icon" onclick="checkMap(${data.Latitude}, ${data.Longitude})">
+                            </td>
+                        `;
+                        dataTable.appendChild(tr);
+                    }
+                });
+            }).catch((error) => {
+                console.error('Error fetching data:', error);
+            });
+        }
+
+        // Function to show the table
+        function showTable() {
+            const tableContainer = document.getElementById('tableContainer');
+            tableContainer.classList.remove('hidden');
+            fetchData();
+        }
+
+        // Function to update data in Firestore
+        function updateData(docId, field, value) {
+            const data = {};
+            data[field] = parseFloat(value);
+
+            db.collection('entreprises').doc(docId).update(data)
+                .then(() => {
+                    console.log('Data updated successfully!');
+                })
+                .catch((error) => {
+                    console.error('Error updating data:', error);
+                });
+        }
+
+        // Function to save data in Firestore
+        function saveData(docId, buttonElement) {
+            const tr = buttonElement.closest('tr');
+            const latitude = parseFloat(tr.children[4].textContent);
+            const longitude = parseFloat(tr.children[5].textContent);
+
+            const data = {
+                Latitude: latitude,
+                Longitude: longitude
+            };
+
+            db.collection('entreprises').doc(docId).update(data)
+                .then(() => {
+                    alert('Data saved successfully!');
+                })
+                .catch((error) => {
+                    console.error('Error saving data:', error);
+                });
+        }
+
+        // Function to open Google Maps with the specified coordinates
+        function checkMap(latitude, longitude) {
+            const url = `https://www.google.com/maps?q=${latitude},${longitude}`;
+            window.open(url, '_blank');
+        }
+    </script>
+</body>
+</html>
